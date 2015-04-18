@@ -9,7 +9,7 @@ int main(int argc, char *argv[])
 		printf("arg %d: %s\n", i, argv[i]);
 		i++;
 	}
-
+//I'm putting some bullshit here
 	// let's make our own array of strings
 	char *states[] = {
 		"California", "Oregon",
