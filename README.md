@@ -1,4 +1,4 @@
-# ${1:Project Charybdis}
+# Project Charybdis
 
 For IREC 2015
 
