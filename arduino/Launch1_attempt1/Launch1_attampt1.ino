@@ -1,3 +1,4 @@
+//This shit is missing IMU data collect and save to SD card
 #include <Servo.h>
 //Put whatever bluetooth import here
 unsigned long start;
