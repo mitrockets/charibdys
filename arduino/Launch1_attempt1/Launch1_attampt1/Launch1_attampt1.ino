@@ -1,4 +1,5 @@
 #include <Servo.h>
+#include <Adafruit_Sensor.h>
 //Put whatever bluetooth import here
 unsigned long start;
 unsigned long now;
@@ -215,6 +216,7 @@ void update_altimeter(){
   Serial.print("Reading altimeter\n");
 }
 void collect_data(){
+  
   //code that reads data from IMU goes here
 }
 
