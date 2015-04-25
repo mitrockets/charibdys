@@ -1,5 +1,9 @@
 #include <Servo.h>
 #include <Adafruit_Sensor.h>
+#include <Wire.h>
+#include Adafruit_LSM303_U.h>
+
+
 //Put whatever bluetooth import here
 unsigned long start;
 unsigned long now;
@@ -216,7 +220,16 @@ void update_altimeter(){
   Serial.print("Reading altimeter\n");
 }
 void collect_data(){
-  
+  /* Get a new sensor event */ 
+  //code to read acceleration data in X, Y, and Z directions
+  sensors_event_t event; 
+  accel.getEvent(&event);
+ 
+  /* Display the results (acceleration is measured in m/s^2) */
+  Serial.print("X: "); Serial.print(event.acceleration.x); Serial.print("  ");
+  Serial.print("Y: "); Serial.print(event.acceleration.y); Serial.print("  ");
+  Serial.print("Z: "); Serial.print(event.acceleration.z); Serial.print("  ");Serial.println("m/s^2 ");
+  delay(500);
   //code that reads data from IMU goes here
 }
 
