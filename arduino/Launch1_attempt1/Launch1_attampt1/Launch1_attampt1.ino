@@ -2,6 +2,7 @@
 #include <Adafruit_Sensor.h>
 #include <Wire.h>
 #include Adafruit_LSM303_U.h>
+#include <Adafruit_BMP085_U.h>
 
 
 //Put whatever bluetooth import here
@@ -35,6 +36,7 @@ int analogPin = 0;////////////////////////////////////////edit
 int deploypin = 1;////////////////////////////////////////edit
 pinMode(deploypin, OUTPUT);
 digitalWrite(deploypin, LOW);
+
 }
 
 void loop() 
@@ -226,11 +228,38 @@ void collect_data(){
   accel.getEvent(&event);
  
   /* Display the results (acceleration is measured in m/s^2) */
-  Serial.print("X: "); Serial.print(event.acceleration.x); Serial.print("  ");
-  Serial.print("Y: "); Serial.print(event.acceleration.y); Serial.print("  ");
-  Serial.print("Z: "); Serial.print(event.acceleration.z); Serial.print("  ");Serial.println("m/s^2 ");
+  Serial.print("Acceleration X: "); Serial.print(event.acceleration.x); Serial.print("  ");
+  Serial.print("Acceleration Y: "); Serial.print(event.acceleration.y); Serial.print("  ");
+  Serial.print("Acceleration Z: "); Serial.print(event.acceleration.z); Serial.print("  ");Serial.println("m/s^2 ");
+  
+  
+    /* Get a new sensor event */ 
+  sensors_event_t event; 
+  mag.getEvent(&event);
+ 
+  /* Display the results (magnetic vector values are in micro-Tesla (uT)) */
+  Serial.print("Mag X: "); Serial.print(event.magnetic.x); Serial.print("  ");
+  Serial.print("Mag Y: "); Serial.print(event.magnetic.y); Serial.print("  ");
+  Serial.print("Mag Z: "); Serial.print(event.magnetic.z); Serial.print("  ");Serial.println("uT");
+  
+  
+    /* Get a new sensor event */ 
+  sensors_event_t event;
+  bmp.getEvent(&event);
+ 
+  /* Display the results (barometric pressure is measure in hPa) */
+  if (event.pressure)
+  {
+    /* Display atmospheric pressure in hPa */
+    Serial.print("Pressure: "); Serial.print(event.pressure); Serial.println(" hPa");
+  }
+  else
+  {
+    Serial.println("Sensor error");
+  }
   delay(500);
   //code that reads data from IMU goes here
+  //Max: We need to save this data every time this function runs
 }
 
 void deploy(){
