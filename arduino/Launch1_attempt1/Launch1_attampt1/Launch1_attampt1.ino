@@ -224,6 +224,8 @@ void update_altimeter(){
 void collect_data(){
   /* Get a new sensor event */ 
   //code to read acceleration data in X, Y, and Z directions
+  
+  //This code applies to the 10DOF
   sensors_event_t event; 
   accel.getEvent(&event);
  
