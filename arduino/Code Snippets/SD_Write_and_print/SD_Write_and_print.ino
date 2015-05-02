@@ -18,7 +18,7 @@ void setup() {
   
   read_file();
   
-  remove_data_file();
+  //remove_data_file();
 }
 
 void loop() {
@@ -49,7 +49,7 @@ void initialize_SD_card()
  
  void save_string(String string_to_save)
    {
-     collected_data = SD.open("test.txt", FILE_WRITE);
+     collected_data = SD.open("test.scv", FILE_WRITE);
      
      time = millis();
      
