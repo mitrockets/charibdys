@@ -225,9 +225,39 @@ void collect_data(){
   /* Get a new sensor event */ 
   //code to read acceleration data in X, Y, and Z directions
   
+  //This code applies to 9DOF
+sensors_event_t accel_event_one;
+sensors_vec_t   orientation_one;
+
+/* Calculate pitch and roll from the raw accelerometer data */
+accel.getEvent(&accel_event_one);
+if (dof.accelGetOrientation(&accel_event_one, &orientation_one))
+{
+  /* 'orientation' should have valid .roll and .pitch fields */
+  Serial.print(F("Roll: "));
+  Serial.print(orientation.roll);
+  Serial.print(F("; "));
+  Serial.print(F("Pitch: "));
+  Serial.print(orientation.pitch);
+  Serial.print(F("; "));
+}
+
+sensors_event_t mag_event_one;
+  
+/* Calculate the heading using the magnetometer */
+mag.getEvent(&mag_event_one);
+if (dof.magGetOrientation(SENSOR_AXIS_Z, &mag_event_one, &orientation_one))
+{
+  /* 'orientation' should have valid .heading data now */
+  Serial.print(F("Heading: "));
+  Serial.print(orientation_one.heading);
+  Serial.print(F("; "));
+}
+  
   //This code applies to the 10DOF
-  sensors_event_t event; 
-  accel.getEvent(&event);
+sensors_event_t event_two; 
+sensors_vec_t orientation_two;
+accel.getEvent(&event_two);
  
   /* Display the results (acceleration is measured in m/s^2) */
   Serial.print("Acceleration X: "); Serial.print(event.acceleration.x); Serial.print("  ");
@@ -236,24 +266,23 @@ void collect_data(){
   
   
     /* Get a new sensor event */ 
-  sensors_event_t event; 
-  mag.getEvent(&event);
+  sensors_vec_t mag_event;
+  mag.getEvent(&mag_event);
  
   /* Display the results (magnetic vector values are in micro-Tesla (uT)) */
-  Serial.print("Mag X: "); Serial.print(event.magnetic.x); Serial.print("  ");
-  Serial.print("Mag Y: "); Serial.print(event.magnetic.y); Serial.print("  ");
-  Serial.print("Mag Z: "); Serial.print(event.magnetic.z); Serial.print("  ");Serial.println("uT");
+  Serial.print("Mag X: "); Serial.print(event_two.magnetic.x); Serial.print("  ");
+  Serial.print("Mag Y: "); Serial.print(event_two.magnetic.y); Serial.print("  ");
+  Serial.print("Mag Z: "); Serial.print(event_two.magnetic.z); Serial.print("  ");Serial.println("uT");
   
   
     /* Get a new sensor event */ 
-  sensors_event_t event;
-  bmp.getEvent(&event);
+  bmp.getEvent(&event_two);
  
   /* Display the results (barometric pressure is measure in hPa) */
-  if (event.pressure)
+  if (event_two.pressure)
   {
     /* Display atmospheric pressure in hPa */
-    Serial.print("Pressure: "); Serial.print(event.pressure); Serial.println(" hPa");
+    Serial.print("Pressure: "); Serial.print(event_two.pressure); Serial.println(" hPa");
   }
   else
   {
