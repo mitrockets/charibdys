@@ -1,8 +1,14 @@
 #include <Servo.h>
 #include <Adafruit_Sensor.h>
 #include <Wire.h>
-#include Adafruit_LSM303_U.h>
+#include <Adafruit_LSM303_U.h>
 #include <Adafruit_BMP085_U.h>
+#include <Adafruit_9DOF.h>
+#include <Adafruit_10DOF.h>
+#include <Adafruit_Simple_AHRS.h>
+#include <Adafruit_L3GD20_U.h>
+#include <Arduino.h>
+
 
 
 //Put whatever bluetooth import here
@@ -221,6 +227,9 @@ void update_altimeter(){
   altimeter = analogRead(analogPin);
   Serial.print("Reading altimeter\n");
 }
+
+
+
 void collect_data(){
   /* Get a new sensor event */ 
   //code to read acceleration data in X, Y, and Z directions
@@ -235,10 +244,10 @@ if (dof.accelGetOrientation(&accel_event_one, &orientation_one))
 {
   /* 'orientation' should have valid .roll and .pitch fields */
   Serial.print(F("Roll: "));
-  Serial.print(orientation.roll);
+  Serial.print(orientation_one.roll);
   Serial.print(F("; "));
   Serial.print(F("Pitch: "));
-  Serial.print(orientation.pitch);
+  Serial.print(orientation_one.pitch);
   Serial.print(F("; "));
 }
 
@@ -292,6 +301,9 @@ accel.getEvent(&event_two);
   //code that reads data from IMU goes here
   //Max: We need to save this data every time this function runs
 }
+
+
+
 
 void deploy(){
   deploy_start = millis();
@@ -364,5 +376,3 @@ void collect_delay2(){
     now_2 = millis();
   }
 }
-
-
