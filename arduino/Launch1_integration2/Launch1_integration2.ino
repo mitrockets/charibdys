@@ -27,7 +27,7 @@ LSM9DS0                       dof9    = LSM9DS0(MODE_I2C, LSM9DS0_G, LSM9DS0_XM)
 /* microSD save data*/
 File collected_data;
 bool print_data = true;
-char fileName[] = "arduino_test_data_5_6_15.csv";
+char[] fileName = "arduino_test_data_5_6_15.csv";
 //------------------------------------------------------------------------------
 
 //------------------------- GLOBAL VARIABLES ----------------------------------
@@ -278,35 +278,12 @@ void update_altimeter() {
 
 void collect_data() {
   unsigned long timestamp = millis();
-  writeFile("DATA" + String(timestamp) + ",", false, false);
-
-  printHeading((float) dof.mx, (float) dof.my);
-  printOrientation(dof.calcAccel(dof.ax), dof.calcAccel(dof.ay),
-                   dof.calcAccel(dof.az));
-  writeFile("\n", false, false);
+  float[] *data;
+  data = get_10DOF_data();
+  save_array(data, 7)
 }
 
-void printHeading(float hx, float hy)
-{
-  float heading;
-
-  if (hy > 0)
-  {
-    heading = 90 - (atan(hx / hy) * (180 / PI));
-  }
-  else if (hy < 0)
-  {
-    heading = - (atan(hx / hy) * (180 / PI));
-  }
-  else // hy = 0
-  {
-    if (hx < 0) heading = 180;
-    else heading = 0;
-  }
-
-  writeFile(String(heading) + ",", false, false);
-}
-
+/*
 void printOrientation(float x, float y, float z)
 {
   float pitch, roll;
@@ -317,7 +294,7 @@ void printOrientation(float x, float y, float z)
   roll *= 180.0 / PI;
 
   writeFile(String(pitch) + "," + String(roll), false, false);
-}
+}*/
 
 void deploy() {
   while(altitude < 3000 && velz > 0){
@@ -337,7 +314,7 @@ void deploy() {
 void collect_actuate() {
   while (count < sizeof(actuate_vals) / sizeof(int)) {
     collect_delay();
-    writeFile("count is " + String(count) + "\n", true, true);
+    save_string("count is " + String(count) + "\n", true, true);
     actuate();
   }
   ramp_up(65, 100);
@@ -393,5 +370,99 @@ void collect_delay2() {
   }
 }
 
+void initialize_SD_card()
+  {
+  Serial.begin(9600);
+  while (!Serial) {
+    ; // wait for serial port to connect. Needed for Leonardo only
+  }
+    
+     Serial.print("Initializing SD card...");
+  // On the Ethernet Shield, CS is pin 4. It's set as an output by default.
+  // Note that even if it's not used as the CS pin, the hardware SS pin
+  // (10 on most Arduino boards, 53 on the Mega) must be left as an output
+  // or the SD library functions will not work.
+  pinMode(10, OUTPUT);
 
+  if (!SD.begin(10)) {
+    Serial.println("initialization failed!");
+    return;
+  }
+  Serial.println("initialization done.");
+ }
+ 
+ void save_string(String string_to_save)
+ {
+   collected_data = SD.open("test.scv", FILE_WRITE);
+   
+   time = millis();
+   
+   collected_data.print(time);
+   collected_data.println(" " + string_to_save);
+   
+   if (print_data)
+   {
+     Serial.print("This string is being printed to the SD card: ");
+     Serial.println(string_to_save);
+   }
+   
+   //SD.remove("test.txt");
+   
+   collected_data.close();
+ }
+   
+ void save_array(double array_to_save[], int size_of_array)
+ {
+   collected_data = SD.open("test.txt", FILE_WRITE);
+   
+   time = millis();
+   
+   collected_data.print(time);
+   collected_data.print(" ");
+
+   int i;
+     for (i=0; i < size_of_array; i++) {
+       collected_data.print(array_to_save[i]);
+       collected_data.print(" ");
+       if (print_data){
+         Serial.print("This array is being printed to the SD card: ");
+         Serial.print(array_to_save[i]);
+         Serial.print(" ");
+       }
+     }
+      
+     collected_data.println(" ");
+     Serial.println();
+   /*
+   if (print_data)
+   {
+     int i;
+     for (i=0; i < 4; i++) {
+       Serial.print(array_to_save[i]);
+       Serial.println(" ");
+     }
+   }
+  */ 
+   
+   collected_data.close();
+ }
+ 
+ void read_file() 
+ {
+    collected_data = SD.open(fileName);
+  Serial.println("This is on the SD card:");
+
+  // read from the file until there's nothing else in it:
+  while (collected_data.available()) {
+    Serial.write(collected_data.read());
+  }
+  // close the file:
+  collected_data.close();
+  
+}
+  
+void remove_data_file()
+{
+  SD.remove(fileName);
+}
 
