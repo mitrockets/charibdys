@@ -27,7 +27,7 @@ LSM9DS0                       dof9    = LSM9DS0(MODE_I2C, LSM9DS0_G, LSM9DS0_XM)
 /* microSD save data*/
 File collected_data;
 bool print_data = true;
-char[] fileName = "arduino_test_data_5_6_15.csv";
+char fileName[] = "arduino_test_data_5_6_15.csv";
 //------------------------------------------------------------------------------
 
 //------------------------- GLOBAL VARIABLES ----------------------------------
@@ -45,6 +45,7 @@ Servo servo_1;
 Servo servo_2;
 float altitude = 0;  // meters
 float velz = 0;      // velocity in the z-direction
+double IMU_values[7];
 int altimeter = 0;
 int value_delay;
 int pos = 0;
@@ -61,15 +62,16 @@ int actuate_vals[] = {100 , 135, 100 , 65 , 100 , 135 , 100 , 100 };
 //----------------------------  SETUP  -----------------------------------------
 void setup() {
   Serial.begin(9600);
+
   initialize_SD_card();
   save_string("INFO, Arduino boot\n");
 
   /* Activate sensors */
-  accel.begin();
-  mag.begin();
+  accel10.begin();
+  mag10.begin();
   bmp.begin();
-  uint16_t status = dof9.begin(dof.G_SCALE_2000DPS,
-                               dof.A_SCALE_6G, dof.M_SCALE_2GS);
+  uint16_t status = dof9.begin(dof9.G_SCALE_2000DPS,
+                               dof9.A_SCALE_6G, dof9.M_SCALE_2GS);
   /* Activate actuators */
   servo_1.attach(2);
   servo_2.attach(3);
@@ -80,10 +82,27 @@ void setup() {
 }
 //------------------------------------------------------------------------------
 
+//--------------------- CUSTOM SETUP funcions-----------------------------------
+void initialize_SD_card() {
+   Serial.print("Initializing SD card...");
+  // On the Ethernet Shield, CS is pin 4. It's set as an output by default.
+  // Note that even if it's not used as the CS pin, the hardware SS pin
+  // (10 on most Arduino boards, 53 on the Mega) must be left as an output
+  // or the SD library functions will not work.
+  pinMode(10, OUTPUT);
+
+  if (!SD.begin(10)) {
+    Serial.println("initialization failed, pin not connected");
+    return;
+  }
+  Serial.println("SD card initialized.");
+ }
+//------------------------------------------------------------------------------
+
 //--------------------------------  LOOP  --------------------------------------
 void loop()
 {
-  Serial.print("INFO, Starting loop\n");
+  save_string("INFO, Starting loop\n");
   beginning:
   
   //Checking for bluetooth-- "ok" signal
@@ -121,6 +140,9 @@ void loop()
     goto beginning;
   }
 
+  // For testing purposes only:
+  collect_data();
+  
   //This for safety-- We know that the fins should not deploy for x seconds after launch
   //Continue collecting data- start timer
   collect_timer();
@@ -148,7 +170,7 @@ void loop()
 
   //Get it stuck on a loop
   while (1) {
-    writeFile("I am stuck on a loop\n", true, true);
+    save_string("INFO, I am stuck on a loop\n");
     collect_data();
   }
 
@@ -171,6 +193,8 @@ void arm_seq() {
 
   // Read command
   byte arm = Serial.read();
+  while(Serial.available())
+    Serial.read();
   if (arm == 'a') {
     hasArmed = true;
     save_string("INFO, Rocket ARMED\n");
@@ -178,7 +202,7 @@ void arm_seq() {
     save_string("INPUT, didn't arm. Starting over...\n");
     begin_again();
   }
-  
+
   delay(1000);
 }
 
@@ -194,11 +218,13 @@ void servos_straight() {
   }
   
   // Read command
-  byte straight = Serial.read ();
+  byte straight = Serial.read();
+  while(Serial.available())
+    Serial.read();
   if (straight == 'y') {
     save_string("INFO, flaps confirmed straight. Continuing...\n");
   } else {
-    save_string("INFO, flaps not confirmed. Starting over...\n");
+    save_string("INFO, flaps not confirmed. Starting all over...\n");
     begin_again();
   }
   
@@ -206,19 +232,20 @@ void servos_straight() {
 }
 
 void do_i_data_collect() {
+  save_string("INFO, Prompting for data collection \n");
   while (Serial.available() == false) {
-    writeFile("INFO, Prompting for data collection \n");
     Serial.print("Do I start collecting data? Type 's'\n");
     delay(1000);
   }
   // Read command
   byte collect = Serial.read ();
-
+  while(Serial.available())
+      Serial.read();
   if (collect == 's') {
-    save_string("INFO, Starting data collection now...\n", true, true);
+    save_string("INFO, Starting data collection now...\n");
     Serial.print("Starting data collection now...\n");
   } else {
-    writeFile("Type 's' if you want to collect data. Starting over...\n", true, true);
+    save_string("Type 's' if you want to collect data. Starting over...\n");
     begin_again();
   }
  
@@ -226,9 +253,9 @@ void do_i_data_collect() {
 }
 
 void collect_detect() {
-  float ax = dof9.calcAccel(dof.ax);
-  float ay = dof9.calcAccel(dof.ay);
-  float az = dof9.calcAccel(dof.az);
+  float ax = dof9.calcAccel(dof9.ax);
+  float ay = dof9.calcAccel(dof9.ay);
+  float az = dof9.calcAccel(dof9.az);
   acceleration = sqrt(ax * ax + ay * ay + az * az);
   while (acceleration < launch_accel) {
     if (Serial.available()) {
@@ -236,7 +263,7 @@ void collect_detect() {
       break;
     }
     collect_data();
-    save_string("INFO, will start time once 3gs have been detected\n", true, true);
+    save_string("INFO, will start time once 3gs have been detected\n");
   }
 }
 
@@ -276,13 +303,6 @@ void update_altimeter() {
 }
 */
 
-void collect_data() {
-  unsigned long timestamp = millis();
-  float[] *data;
-  data = get_10DOF_data();
-  save_array(data, 7)
-}
-
 /*
 void printOrientation(float x, float y, float z)
 {
@@ -306,7 +326,7 @@ void deploy() {
     digitalWrite(deploypin, LOW);
     collect_data();
     now_1 = millis();
-    writeFile("Making the wire smoking hot\n", true, true);
+    save_string("INFO, Making the wire smoking hot\n");
   }
   digitalWrite(deploypin, HIGH);
 }
@@ -314,7 +334,7 @@ void deploy() {
 void collect_actuate() {
   while (count < sizeof(actuate_vals) / sizeof(int)) {
     collect_delay();
-    save_string("count is " + String(count) + "\n", true, true);
+    save_string("count is " + String(count) + "\n");
     actuate();
   }
   ramp_up(65, 100);
@@ -370,32 +390,40 @@ void collect_delay2() {
   }
 }
 
-void initialize_SD_card()
-  {
-  Serial.begin(9600);
-  while (!Serial) {
-    ; // wait for serial port to connect. Needed for Leonardo only
-  }
-    
-     Serial.print("Initializing SD card...");
-  // On the Ethernet Shield, CS is pin 4. It's set as an output by default.
-  // Note that even if it's not used as the CS pin, the hardware SS pin
-  // (10 on most Arduino boards, 53 on the Mega) must be left as an output
-  // or the SD library functions will not work.
-  pinMode(10, OUTPUT);
+void collect_data() {
+  get_10DOF_data(IMU_values);
+  
+  save_array(IMU_values, 7);
+}
 
-  if (!SD.begin(10)) {
-    Serial.println("initialization failed!");
-    return;
-  }
-  Serial.println("initialization done.");
+ void get_10DOF_data(double IMU_values[]) {
+
+  sensors_event_t event; 
+  sensors_vec_t orientation;
+  
+  // Accelerometer data
+  accel10.getEvent(&event);
+  IMU_values[0] = event.acceleration.x;
+  IMU_values[1] = event.acceleration.y;
+  IMU_values[2] = event.acceleration.z;
+  
+  // Magnetometer data
+  mag10.getEvent(&event);
+ 
+  IMU_values[3] = event.magnetic.x;
+  IMU_values[4] = event.magnetic.y;
+  IMU_values[5] = event.magnetic.z;
+  
+  // Pressure data
+  bmp.getEvent(&event);
+  IMU_values[6] = event.pressure;
  }
  
  void save_string(String string_to_save)
  {
-   collected_data = SD.open("test.scv", FILE_WRITE);
+   collected_data = SD.open(fileName, FILE_WRITE);
    
-   time = millis();
+   unsigned long time = millis();
    
    collected_data.print(time);
    collected_data.println(" " + string_to_save);
@@ -413,9 +441,9 @@ void initialize_SD_card()
    
  void save_array(double array_to_save[], int size_of_array)
  {
-   collected_data = SD.open("test.txt", FILE_WRITE);
+   collected_data = SD.open(fileName, FILE_WRITE);
    
-   time = millis();
+   unsigned long time = millis();
    
    collected_data.print(time);
    collected_data.print(" ");
@@ -425,14 +453,14 @@ void initialize_SD_card()
        collected_data.print(array_to_save[i]);
        collected_data.print(" ");
        if (print_data){
-         Serial.print("This array is being printed to the SD card: ");
+         Serial.print("-> SD: ");
          Serial.print(array_to_save[i]);
          Serial.print(" ");
        }
      }
       
      collected_data.println(" ");
-     Serial.println();
+     //Serial.println();
    /*
    if (print_data)
    {
