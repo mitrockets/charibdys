@@ -46,9 +46,10 @@ void initialize_SD_card()
   }
   Serial.println("initialization done.");
  }
-  void save_string(String string_to_save)
+
+void save_string(String string_to_save)
  {
-   collected_data = SD.open("test.scv", FILE_WRITE);
+   collected_data = SD.open(fileName, FILE_WRITE);
    
    unsigned long time = millis();
    
@@ -68,7 +69,7 @@ void initialize_SD_card()
    
  void save_array(double array_to_save[], int size_of_array)
  {
-   collected_data = SD.open("test.txt", FILE_WRITE);
+   collected_data = SD.open(fileName, FILE_WRITE);
    
    unsigned long time = millis();
    
