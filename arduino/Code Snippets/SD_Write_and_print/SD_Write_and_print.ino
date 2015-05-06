@@ -5,7 +5,7 @@ File collected_data;
 bool print_data = false;
 String test_string = "This is a test of saving to the SD card.";
 double test_array[] = {2.2, 5.4, 7.6, 10.3, 9.5};
-unsigned long time;
+char fileName[] = "test.csv";
 
 void setup() {
   // put your setup code here, to run once:
@@ -46,78 +46,78 @@ void initialize_SD_card()
   }
   Serial.println("initialization done.");
  }
- 
- void save_string(String string_to_save)
+  void save_string(String string_to_save)
+ {
+   collected_data = SD.open("test.scv", FILE_WRITE);
+   
+   unsigned long time = millis();
+   
+   collected_data.print(time);
+   collected_data.println(" " + string_to_save);
+   
+   if (print_data)
    {
-     collected_data = SD.open("test.scv", FILE_WRITE);
-     
-     time = millis();
-     
-     collected_data.print(time);
-     collected_data.println(" " + string_to_save);
-     
-     if (print_data)
-     {
-       Serial.print("This string is being printed to the SD card: ");
-       Serial.println(string_to_save);
-     }
-     
-     //SD.remove("test.txt");
-     
-     collected_data.close();
+     Serial.print("This string is being printed to the SD card: ");
+     Serial.println(string_to_save);
    }
+   
+   //SD.remove("test.txt");
+   
+   collected_data.close();
+ }
    
  void save_array(double array_to_save[], int size_of_array)
-   {
-     collected_data = SD.open("test.txt", FILE_WRITE);
-     
-     time = millis();
-     
-     collected_data.print(time);
-     collected_data.print(" ");
+ {
+   collected_data = SD.open("test.txt", FILE_WRITE);
+   
+   unsigned long time = millis();
+   
+   collected_data.print(time);
+   collected_data.print(" ");
 
-     int i;
-       for (i=0; i < size_of_array; i++) {
-         collected_data.print(array_to_save[i]);
-         collected_data.print(" ");
-         if (print_data){
-           Serial.print("This array is being printed to the SD card: ");
-           Serial.print(array_to_save[i]);
-           Serial.print(" ");
-         }
-       }
-        
-       collected_data.println(" ");
-       Serial.println();
-     /*
-     if (print_data)
-     {
-       int i;
-       for (i=0; i < 4; i++) {
+   int i;
+     for (i=0; i < size_of_array; i++) {
+       collected_data.print(array_to_save[i]);
+       collected_data.print(" ");
+       if (print_data){
+         Serial.print("-> SD: ");
          Serial.print(array_to_save[i]);
-         Serial.println(" ");
+         Serial.print(" ");
        }
      }
-    */ 
-     
-     collected_data.close();
-   }
-   
-   void read_file() 
+      
+     collected_data.println(" ");
+     //Serial.println();
+   /*
+   if (print_data)
    {
-      collected_data = SD.open("test.txt");
-    Serial.println("This is on the SD card:");
+     int i;
+     for (i=0; i < 4; i++) {
+       Serial.print(array_to_save[i]);
+       Serial.println(" ");
+     }
+   }
+  */ 
+   
+   collected_data.close();
+ }
+ 
+ void read_file() 
+ {
+    collected_data = SD.open(fileName);
+  Serial.println("This is on the SD card:");
 
-    // read from the file until there's nothing else in it:
-    while (collected_data.available()) {
-      Serial.write(collected_data.read());
-    }
-    // close the file:
-    collected_data.close();
-    
+  // read from the file until there's nothing else in it:
+  while (collected_data.available()) {
+    Serial.write(collected_data.read());
   }
+  // close the file:
+  collected_data.close();
   
-  void remove_data_file()
-  {
-    SD.remove("test.txt");
-  }
+}
+  
+void remove_data_file()
+{
+  SD.remove(fileName);
+}
+
