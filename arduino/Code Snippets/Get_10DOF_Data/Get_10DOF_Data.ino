@@ -17,13 +17,13 @@ float *get_10DOF_data() {
   sensors_vec_t orientation;
   
   // Accelerometer data
-  accel.getEvent(&event);
+  accel10.getEvent(&event);
   IMU_values[0] = event.acceleration.x;
   IMU_values[1] = event.acceleration.y;
   IMU_values[2] = event.acceleration.z;
   
   // Magnetometer data
-  mag.getEvent(&event);
+  mag10.getEvent(&event);
  
   IMU_values[3] = event.magnetic.x;
   IMU_values[4] = event.magnetic.y;
