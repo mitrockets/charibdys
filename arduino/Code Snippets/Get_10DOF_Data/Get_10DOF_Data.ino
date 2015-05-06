@@ -23,12 +23,11 @@ float *get_10DOF_data() {
   IMU_values[2] = event.acceleration.z;
   
   // Magnetometer data
-  sensors_vec_t mag_event;
-  mag.getEvent(&mag_event);
+  mag.getEvent(&event);
  
-  IMU_values[3] = event_two.magnetic.x;
-  IMU_values[4] = event_two.magnetic.y;
-  IMU_values[5] = event_two.magnetic.z;
+  IMU_values[3] = event.magnetic.x;
+  IMU_values[4] = event.magnetic.y;
+  IMU_values[5] = event.magnetic.z;
   
   // Pressure data
   bmp.getEvent(&event);
