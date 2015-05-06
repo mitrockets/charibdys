@@ -43,6 +43,8 @@ bool start_again = false;
 bool hasArmed = false;
 Servo servo_1;
 Servo servo_2;
+float altitude = 0;  // meters
+float velz = 0;      // velocity in the z-direction
 int altimeter = 0;
 int value_delay;
 int pos = 0;
@@ -129,7 +131,7 @@ void loop()
   }
 
   //Continue collecting data- check for altimeter signal
-  collect_deploy();
+  //collect_deploy();
   //exit when altimeter activated
 
   //Make the wire hot for delay
@@ -224,9 +226,9 @@ void do_i_data_collect() {
 }
 
 void collect_detect() {
-  float ax = dof.calcAccel(dof.ax);
-  float ay = dof.calcAccel(dof.ay);
-  float az = dof.calcAccel(dof.az);
+  float ax = dof9.calcAccel(dof.ax);
+  float ay = dof9.calcAccel(dof.ay);
+  float az = dof9.calcAccel(dof.az);
   acceleration = sqrt(ax * ax + ay * ay + az * az);
   while (acceleration < launch_accel) {
     if (Serial.available()) {
@@ -234,17 +236,16 @@ void collect_detect() {
       break;
     }
     collect_data();
-    writeFile("I am in collect_detect right now\n", true, true);
-    Serial.print("I am in collect_detect right now. Waiting for 3gs of acceleration\n");
+    save_string("INFO, will start time once 3gs have been detected\n", true, true);
   }
 }
 
 void collect_timer() {
-  writeFile("Launch detected!!!", true, true);
-  Serial.print("Launch detected!!!\n");
+  save_string("INFO, launch detected, 33second timer started for fin deployment");
   start = millis();
   now = millis();
-  while (now - start < 33000) { /////////////////////////////HOW LONG IS LAUNCH
+  // Start timer
+  while (now - start < 33000) {
     if (Serial.available()) {
       begin_again();
       break;
@@ -255,12 +256,13 @@ void collect_timer() {
 
 }
 
+/* PROBABLY WONT BE ABLE TO READ ALITMETER
 void collect_deploy() {
-  while (altimeter < 5) { /////////////////////////////////////UPDATE
+  //Check if we are flying!
+  while (altimeter < 5) { 
     update_altimeter();////////////////////////Potential problem- might miss reading
     //Call update altimeter within collect data?
     //Time collect_data
-    collect_data();
     altimeter += 1; ////////////////////////////////////////////////delete
     writeFile("I am in collect_deploy right now\n", true, true);
   }
@@ -272,6 +274,7 @@ void update_altimeter() {
   altimeter = analogRead(analogPin);
   writeFile("Reading altimeter\n", false, true);
 }
+*/
 
 void collect_data() {
   unsigned long timestamp = millis();
@@ -317,6 +320,9 @@ void printOrientation(float x, float y, float z)
 }
 
 void deploy() {
+  while(altitude < 3000 && velz > 0){
+      // Just wait to make sure we are flying when we deploy 
+  }
   deploy_start = millis();
   now_1 = millis();
   while (now_1 - deploy_start < 10000) { /////////////////////Edit delay for hot wire
