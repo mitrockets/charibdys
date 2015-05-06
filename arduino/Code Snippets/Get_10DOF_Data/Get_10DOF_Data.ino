@@ -34,5 +34,5 @@ float *get_10DOF_data() {
   bmp.getEvent(&event);
   IMU_values[6] = event_two.pressure;
 
-  return IMU_values;
+  return &IMU_values;
  }
