@@ -52,7 +52,7 @@ Servo servo_1;
 Servo servo_2;
 float altitude = 0;  // meters
 float velz = 0;      // velocity in the z-direction
-double IMU_values[7];
+double IMU_values[10];
 int altimeter = 0;
 int value_delay;
 int pos = 0;

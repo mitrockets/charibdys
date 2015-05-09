@@ -17,7 +17,7 @@ float seaLevelPressure = SENSORS_PRESSURE_SEALEVELHPA;
 
 void setup()
 {
-  Serial.begin(115200);
+  Serial.begin(9600);
   Serial.println(F("Adafruit 10 DOF Board AHRS Example")); Serial.println("");
   
   // Initialize the sensors.
@@ -37,6 +37,7 @@ void loop(void)
   {
     /* 'orientation' should have valid .roll and .pitch fields */
     Serial.print(F("Orientation: "));
+    Serial.print(F(" "));
     Serial.print(orientation.roll);
     Serial.print(F(" "));
     Serial.print(orientation.pitch);
@@ -57,24 +58,25 @@ void loop(void)
     float temperature;
     bmp.getTemperature(&temperature);
     /* Convert atmospheric pressure, SLP and temp to altitude */
-    Serial.print(F("Alt: "));
-    Serial.print(bmp.pressureToAltitude(seaLevelPressure,
-                                        bmp_event.pressure,
-                                        temperature)); 
+    //Serial.print(F("Alt: "));
+    //Serial.print(bmp.pressureToAltitude(seaLevelPressure,
+                                       // bmp_event.pressure,
+                                       // temperature)); 
                                   
     Serial.println(F(""));
     /* Display the temperature */
-    Serial.print(F("Temp: "));
-    Serial.print(temperature);
+    //Serial.print(F("Temp: "));
+    //Serial.print(temperature);
     Serial.println(F(""));
     IMU_values[3] = bmp.pressureToAltitude(seaLevelPressure,
                                         bmp_event.pressure,
                                         temperature);
     IMU_values[4] = temperature;
-    for (int i = 0; i<5; i++) {
-    Serial.print(IMU_values[i]);
-    }                         
+//    Serial.print("IMU_values list: ");
+//    for (int i = 0; i<5; i++) {
+//    Serial.print(IMU_values[i]);
+   // }                         
   }
   
-  delay(100);
+  delay(1000);
 }
