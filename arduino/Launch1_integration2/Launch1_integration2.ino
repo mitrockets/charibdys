@@ -404,6 +404,8 @@ void collect_data() {
   get_10DOF_data(IMU_values);
   
   save_array(IMU_values, 7);
+  
+  read_file();
 }
 
  void get_10DOF_data(double IMU_values[]) {

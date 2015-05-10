@@ -22,10 +22,10 @@ Adafruit_Simple_AHRS          ahrs(&accel, &mag);
 float seaLevelPressure = SENSORS_PRESSURE_SEALEVELHPA;
 
 /* microSD save data*/
-File collected_data;
+double IMU_values[5];
 bool print_data = true;
-char fileName[] = "arduino_test_data_5_6_15.csv";
-
+char fileName[] = "test.txt";
+const int chipSelect = 53;
 void setup()
 {
   Serial.begin(9600);
@@ -42,7 +42,6 @@ void setup()
 
 void loop(void)
 {
-  double IMU_values[5];
   
   sensors_vec_t   orientation;
 
@@ -50,13 +49,13 @@ void loop(void)
   if (ahrs.getOrientation(&orientation))
   {
     /* 'orientation' should have valid .roll and .pitch fields */
-    Serial.print(F("Orientation: "));
-    Serial.print(orientation.roll);
-    Serial.print(F(" "));
-    Serial.print(orientation.pitch);
-    Serial.print(F(" "));
-    Serial.print(orientation.heading);
-    Serial.println(F(""));
+//    Serial.print(F("Orientation: "));
+//    Serial.print(orientation.roll);
+//    Serial.print(F(" "));
+//    Serial.print(orientation.pitch);
+//    Serial.print(F(" "));
+//    Serial.print(orientation.heading);
+//    Serial.println(F(""));
     IMU_values[0] = orientation.roll;
     IMU_values[1] = orientation.pitch;
     IMU_values[2] = orientation.heading;
@@ -92,6 +91,7 @@ void loop(void)
     }                         
   }
     save_array(IMU_values, 5);
+    read_file();
   delay(2000);
 }
 
@@ -101,9 +101,9 @@ void initialize_SD_card() {
   // Note that even if it's not used as the CS pin, the hardware SS pin
   // (10 on most Arduino boards, 53 on the Mega) must be left as an output
   // or the SD library functions will not work.
-  pinMode(10, OUTPUT);
+  pinMode(53, OUTPUT);
 
-  if (!SD.begin(10)) {
+  if (!SD.begin(chipSelect)) {
     Serial.println("initialization failed, pin not connected");
     return;
   }
@@ -112,27 +112,36 @@ void initialize_SD_card() {
  
 void save_string(String string_to_save)
  {
-   collected_data = SD.open(fileName, FILE_WRITE);
+   File collected_data = SD.open("test.txt", FILE_WRITE);
    
-   unsigned long time = millis();
+   //unsigned long time = millis();
    
-   collected_data.print(time);
-   collected_data.println(" " + string_to_save);
-   
-   if (print_data)
+//   collected_data.print(time);
+//   collected_data.println(" " + string_to_save);
+//   Serial.println("I hope this printed something");
+//   Serial.println(collected_data);
+//   Serial.println("Something should have printed before this");
+   if (collected_data)
    {
-     Serial.print("This string is being printed to the SD card: ");
+     //Serial.print("This string is being printed to the SD card: ");
      Serial.println(string_to_save);
+     //collected_data.println("This string is being printed to the SD card: ");
+     collected_data.println(string_to_save);
+     collected_data.close();
+   }
+   else {
+     Serial.print("String error saving to SD card.");
    }
    
    //SD.remove("test.txt");
    
-   collected_data.close();
+   
  }
    
  void save_array(double array_to_save[], int size_of_array)
  {
-   collected_data = SD.open(fileName, FILE_WRITE);
+   File collected_data = SD.open("test.txt", FILE_WRITE);
+   //Serial.println("I just opened an SD card file");
    
    unsigned long time = millis();
    
@@ -140,14 +149,22 @@ void save_string(String string_to_save)
    collected_data.print(" ");
 
    int i;
+   if (collected_data){
      for (i=0; i < size_of_array; i++) {
-       collected_data.print(array_to_save[i]);
+       collected_data.println(array_to_save[i]);
        collected_data.print(" ");
-       if (print_data){
-         Serial.print("-> SD: ");
+       //Serial.println("I just printed part of the array.");
+         //Serial.println("Collected_data is True!");
+         //Serial.print("-> SD: ");
          Serial.print(array_to_save[i]);
          Serial.print(" ");
-       }
+
+     }
+      collected_data.close();
+   }
+       else
+       {
+         Serial.println("Error saving array to file");
      }
       
      collected_data.println(" ");
@@ -162,20 +179,32 @@ void save_string(String string_to_save)
      }
    }
   */ 
-   
    collected_data.close();
+ 
  }
   void read_file() 
  {
-    collected_data = SD.open(fileName);
-  Serial.println("This is on the SD card:");
+  File collected_data = SD.open("test.txt");
+  //Serial.println("This is on the SD card:");
 
   // read from the file until there's nothing else in it:
-  while (collected_data.available()) {
+  while (collected_data.available() > 0) {
     Serial.write(collected_data.read());
   }
   // close the file:
   collected_data.close();
+//    collected_data = SD.open(fileName);
+//  Serial.println("This is on the SD card:");
+//  int elapsed = 0;
+//  // read from the file until there's nothing else in it:
+//  int start = millis();
+//  while (elapsed<10000) {
+//    Serial.write(collected_data.read());
+//    int now = millis();
+//    elapsed = now-start;
+//  }
+  // close the file:
+  //collected_data.close();
   
 }
   
