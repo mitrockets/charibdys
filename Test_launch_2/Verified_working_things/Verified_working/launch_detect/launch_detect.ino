@@ -1,27 +1,4 @@
-/*
-Listen to user for PID setpoints
-
-Activation Sequence- put this in void setup
-Start with PID set in the beginning to do position control
-
-void loop
-Collect data and save it
-PID
-Actuate
-Listen for user input
-
-If user input
-ask for P
-ask for I
-ask for D
-ask for setpoint
-Set P,I,D, setpoint appropiately
-Set servos straight for 5 seconds
-
-*/
-#include <SD.h>
-#include <SPI.h>
-#include <Servo.h>
+// Libraries
 #include <math.h>
 #include <Wire.h>
 #include <Adafruit_Sensor.h>
@@ -30,33 +7,33 @@ Set servos straight for 5 seconds
 #include <Adafruit_L3GD20_U.h>
 #include <Adafruit_10DOF.h>
 #include <Adafruit_Simple_AHRS.h>
+
+//---------------------------------------------------------------------------------------------------
+// Sensor instances
 Adafruit_LSM303_Accel_Unified accel(30301);
 Adafruit_LSM303_Mag_Unified   mag(30302);
 Adafruit_BMP085_Unified       bmp(18001);
 Adafruit_L3GD20_Unified       gyro  = Adafruit_L3GD20_Unified(20);
-#define sampleFreq   25.0f        // sample frequency in Hz
-#define betaDef      3.0f         // 2 * proportional gain
-#include <PID_v4.h>
-double Input, Output;  
-double Setpoint = 30;
-float P;
-float I;
-float D;
-PID myPID(&Input, &Output, &Setpoint, 1, 0, 0,DIRECT);//pid///////////////
-Servo servo_1;
-Servo servo_2;
-float psi, theta, phi;
-float invSqrt(float x);
 
-int servo_1_min = 60;
-int servo_1_max = 120;
-int servo_2_min = 60;
-int servo_2_max = 120;
-int servo_1_center = 90;
-int servo_2_center = 90;
-volatile float beta = betaDef;    // 2 * proportional gain (Kp)
+//---------------------------------------------------------------------------------------------------
+// Definitions
+
+#define sampleFreq   25.0f      // sample frequency in Hz
+#define betaDef      3.0f      // 2 * proportional gain
+
+//---------------------------------------------------------------------------------------------------
+// Variable definitions
+
+volatile float beta = betaDef;                        // 2 * proportional gain (Kp)
 volatile float q0 = 1.0f, q1 = 0.0f, q2 = 0.0f, q3 = 0.0f;   // quaternion of sensor frame relative to auxiliary frame
-unsigned long now;
+float az;
+int launch_accel = 500;
+//---------------------------------------------------------------------------------------------------
+// Function declarations
+float invSqrt(float x);
+//---------------------------------------------------------------------------------------------------
+// Fast inverse square-root
+// See: http://en.wikipedia.org/wiki/Fast_inverse_square_root
 float invSqrt(float x) {
   float halfx = 0.5f * x;
   float y = x;
@@ -67,200 +44,23 @@ float invSqrt(float x) {
   return y;
 }
 
-double dataFile_values[10];
-const int chipSelect = 53;
-
+float psi, theta, phi;
 void setup() {
   Serial.begin(9600);
-  initialize_SD_card();
+  Serial.println(F("Adafruit 10DOF Tester"));
+  Serial.println("");
 
-  File dataFile = SD.open("pidfive.txt", FILE_WRITE);
-
-  Serial.println("Setting up...");
-  
-  //Starting setpoint. 
-  //Does not matter because you can define it at any point over bluetooth.
-  Setpoint = 90;
-  
-  servo_1.attach(8);
-  servo_2.attach(9);
-  
   accel.begin();
   mag.begin();
   bmp.begin();
   gyro.begin();
-  myPID.SetMode(AUTOMATIC); //turn PID on
-  myPID.SetOutputLimits(-400,400);
-  arm_seq();
-  dataFile.print("Time:");
-  dataFile.println(now);
-  Serial.print("Time:");
-  Serial.println(now);
-  Serial.println("Done with Setup");
-  dataFile.println("Done with Setup");
-  dataFile.close();
-  delay(5000);
 }
 
 void loop() {
-  
-  File dataFile = SD.open("pidfive.txt", FILE_WRITE);
-  dataFile.println("About to collect data");
-  dataFile.close();
-  
-  collect_data();
-  
-  dataFile = SD.open("pidfive.txt", FILE_WRITE);
-  dataFile.println("Data Collected");
-  dataFile.close();
-  
-  pid();
-  
-  dataFile = SD.open("pidfive.txt", FILE_WRITE);
-  dataFile.println("PID output computed");
-  dataFile.close();
-  
-  
-  actuate();
-  
-  dataFile = SD.open("pidfive.txt", FILE_WRITE);
-  dataFile.println("Servos Actuated");
-  dataFile.close();
-  
-  input(); 
-
-}
-
-void arm_seq(){
-  while (Serial.available() == false) {
-    Serial.println("Ready to be armed. Type 'a'");
-    collect_data();
-    delay(1000);
-  }
-  if (Serial.available()) {
-      // Read command
-      byte arm = Serial.read();
-  
-      if (arm == 'a'){
-        Serial.println("ARMED");
-      }
-  }
-  delay(1000);
-}
-
-void servos_straight(){
-  File dataFile = SD.open("pidfive.txt", FILE_WRITE);
-  servo_1.write(servo_1_center);/////////////////////////////////////////////////////////////////////////////////////////////////
-  servo_2.write(servo_2_center);////////////////////////////////////////////////////////////////////////////////////////////////
-  Serial.println("Servos being commanded to 0 degrees\n");
-  dataFile.print("Time : ");
-  dataFile.print(now);
-  dataFile.println(" :Servos being commanded to 0 degrees\n");
-  dataFile.close();
-  delay(5000);
-}
-
-void collect_data(){
-  File dataFile = SD.open("pidfive.txt", FILE_WRITE);
   MadgwickAHRSupdate();
-  psi = atan2((2 * q1 * q2) - (2 * q0 * q3), (2 * pow(q0, 2)) + (2 * pow(q1, 2)) - 1);
-  psi *= 180.0/PI;
-  if (psi < 0) psi+=360;
-  Serial.println(psi);
-  now = millis();
-  dataFile.print("Time : ");
-  dataFile.print(now);
-  dataFile.print("  :ANGLE : ");
-  dataFile.println(psi);
-  dataFile.close();
-}
-
-void pid(){
-  File dataFile = SD.open("pidfive.txt", FILE_WRITE);
-  Input = psi;///////////////////////////////////////////////////Put your roll into the Input
-  myPID.Compute();
-  Serial.print(" Output (from PID): ");
-  Serial.println(Output);
-  dataFile.print("Time : ");
-  dataFile.print(now);
-  dataFile.print("  :PID output : ");
-  dataFile.println(Output);
-  dataFile.close();
-}
-
-void actuate(){
-  File dataFile = SD.open("pidfive.txt", FILE_WRITE);
-  double servo1Output = map(Output, -400, 400, servo_1_min, servo_1_max);////////////////////Set servo constraint here
-  double servo2Output = map(Output, -400, 400, servo_2_min, servo_2_max);
-  
-  if (servo1Output > servo_1_max){
-    servo1Output = servo_1_max;
-  }
-  if (servo1Output < servo_1_min){
-    servo1Output = servo_1_min;
-  }
-  
-  if (servo2Output > servo_2_max){
-    servo2Output = servo_2_max;
-  }
-  if (servo2Output < servo_2_min){
-    servo2Output = servo_2_min;
-  }
-  
-  servo_1.write(servo1Output);
-  servo_2.write(servo2Output);
-  Serial.print("; Servo 1 Output: ");
-  Serial.println(servo1Output);
-  dataFile.print("Time : ");
-  dataFile.print(now);
-  dataFile.print(" :Servo 1 Output: ");
-  dataFile.println(servo1Output);
-  dataFile.print(" :Servo 2 Output: ");
-  dataFile.println(servo2Output);
-  dataFile.close();
-}
-
-void input(){
-  File dataFile = SD.open("pidfive.txt", FILE_WRITE);
-  if (Serial.available()) {  
-    Serial.println("You just entered P");
-    P = Serial.parseFloat();
-    
-    Serial.println("Enter I: ");
-    while (Serial.available() == false){
-    }
-    I = Serial.parseFloat();
-    
-    Serial.println("Enter D: ");
-    while (Serial.available() == false){
-    }
-    D = Serial.parseFloat();
-    
-    Serial.println("Enter Setpoint: ");
-    while (Serial.available() == false){
-    }
-    Setpoint = Serial.parseFloat();
-    myPID.SetTunings(P,I,D);
-    Serial.print("PID is::: ");
-    Serial.print(P);
-    Serial.print(" ");
-    Serial.print(I);
-    Serial.print(" ");
-    Serial.print(D);
-    Serial.print("Setpoint is:: ");
-    Serial.println(Setpoint);
-    dataFile.print("P, I, D, Setpoint: ");
-    dataFile.print(P);
-    dataFile.print(", ");
-    dataFile.print(I);
-    dataFile.print(", ");
-    dataFile.print(D);
-    dataFile.print(", ");
-    dataFile.println(Setpoint);
-
-    dataFile.close();
-    servos_straight();
-  }
+  delay(10);
+  launch_detect();
+  Serial.println("I HAVE LAUNCHED");
 }
 
 void MadgwickAHRSupdate() {
@@ -276,7 +76,9 @@ void MadgwickAHRSupdate() {
   accel.getEvent(&eventa);
   float  ax = (eventa.acceleration.x)*101;
   float  ay = eventa.acceleration.y*101;
-  float  az = eventa.acceleration.z*101;
+  az = eventa.acceleration.z*101;
+  Serial.print("Acceleration in z: ");
+  Serial.println(az);
   /* Get a new sensor event */
   sensors_event_t eventm;
   mag.getEvent(&eventm);
@@ -394,7 +196,7 @@ void MadgwickAHRSupdateIMU() {
   accel.getEvent(&eventa);
   float  ax = eventa.acceleration.x;
   float  ay = eventa.acceleration.y;
-  float  az = eventa.acceleration.z;
+  az = eventa.acceleration.z;
   /* Get a new sensor event */
   sensors_event_t eventm;
   mag.getEvent(&eventm);
@@ -468,17 +270,11 @@ void MadgwickAHRSupdateIMU() {
   q3 *= recipNorm;
 }
 
-void initialize_SD_card() {
-   Serial.print("Initializing SD card...");
-  // On the Ethernet Shield, CS is pin 4. It's set as an output by default.
-  // Note that even if it's not used as the CS pin, the hardware SS pin
-  // (10 on most Arduino boards, 53 on the Mega) must be left as an output
-  // or the SD library functions will not work.
-  pinMode(53, OUTPUT);
-
-  if (!SD.begin(chipSelect)) {
-    Serial.println("initialization failed, pin not connected");
-    return;
+void launch_detect(){
+  while (az < launch_accel){
+    if (Serial.available()) {
+      break;
+      }
+     Serial.println(az);  
   }
-  Serial.println("SD card initialized.");
- }
+}

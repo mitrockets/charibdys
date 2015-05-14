@@ -1,11 +1,28 @@
 /*
-This is for windtunnel testing
-No controls
-Collects IMU data and stores it in SD card
-Has a set sequence of servo commands in square wave of increasing amplitude
-Purpose is to gauge dynamics of system
+This is the final launch code for Friday, May 13 2015
+
+The main loop runs through once. Each function within it is its own loop.
+Meant to be used with bluetooth. 
+At all points, entering a value into serial monitor will start the code 
+over from scratch (unless it is asking for a specific value at that point)
+
+The flow is as follows:
+-Asks permission to arm
+-Commands the servos to be straight- asks verification
+-Commands servos to max- asks verification
+-Commands servos to min- asks verification
+-Asks whether you are ready to do final arming (starts listening to accelerometer for
+launch detection.
+-Starts listening to accelerometer. If acceleration past set limit, then launch detected
+-Collects data for a set period of time. The key point of this function is that it only
+collects data and presents no danger of deploying fins early in launch
+-Starts listening to altimeter pyro signal and collects data at the same time
+-Deploys the fins and collects data at the same time
+-Starts actuating the fins and collects data
+-Does an end task that does not save to SD card
 */
-#include <Servo.h>
+
+//IMU related things
 #include <math.h>
 #include <Wire.h>
 #include <Adafruit_Sensor.h>
@@ -14,24 +31,16 @@ Purpose is to gauge dynamics of system
 #include <Adafruit_L3GD20_U.h>
 #include <Adafruit_10DOF.h>
 #include <Adafruit_Simple_AHRS.h>
-#include <SD.h>
-#include <SPI.h>
-
-
 Adafruit_LSM303_Accel_Unified accel(30301);
 Adafruit_LSM303_Mag_Unified   mag(30302);
 Adafruit_BMP085_Unified       bmp(18001);
 Adafruit_L3GD20_Unified       gyro  = Adafruit_L3GD20_Unified(20);
 #define sampleFreq   25.0f        // sample frequency in Hz
 #define betaDef      3.0f         // 2 * proportional gain
-
 float psi, theta, phi;
 float invSqrt(float x);
 volatile float beta = betaDef;    // 2 * proportional gain (Kp)
 volatile float q0 = 1.0f, q1 = 0.0f, q2 = 0.0f, q3 = 0.0f;   // quaternion of sensor frame relative to auxiliary frame
-unsigned long now;
-
-
 float invSqrt(float x) {
   float halfx = 0.5f * x;
   float y = x;
@@ -41,101 +50,189 @@ float invSqrt(float x) {
   y = y * (1.5f - (halfx * y * y));
   return y;
 }
+float az;
 
-unsigned long start;
-bool start_again = false;
+//Servo related things/////////////////////////////////MODIFY
+#include <Servo.h>
 Servo servo_1;
 Servo servo_2;
+int servo1_center = 90;
+int servo1_max = 110;
+int servo1_min = 70;
+int servo2_center = 90;
+int servo2_max = 110;
+int servo2_min = 70;
 
-int count = 0;
-int delay_vals[] =   {10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000};
-int actuate_vals[] = {95   ,85   ,100  ,80   ,105  ,75   ,110  ,70   ,115  ,65   ,120  ,60   ,115  ,65   ,110  ,70   ,105  ,75   ,100  ,80   ,95   ,85   ,90};
+
+//Timing related things
+unsigned long now;
+unsigned long start;
+
+//SD card related things
+#include <SD.h>
+#include <SPI.h>
 double dataFile_values[10];
 const int chipSelect = 53;
+String printablestring;
+File dataFile;
+
+//Preset actuation things
+int count = 0;
+int delay_vals[] =   {5000,5000,5000,5000,5000,5000};///////////////////MODIFY
+int actuate_vals[] = {100 ,80  ,110 ,70  ,120 ,60  };
+//Make a check to prevent overshooting limits
+
+//Used for restarting the code
+bool start_again = false;
+
+//Function code is currently in
+String function;
+
+//Launch acceleration detection limit
+int launch_accel = 500;////////////////////////////////////////////////MODIFY
+
+//Pyro check things
+int altimeter_check_pin = 3;/////////////////////////////////////////MODIFY    
+int altimeter_value = 0;
+int deploypin = 5;///////////////////////////////////////////////////MODIFY
+int pyro_on = 20;////////////////////////////////////////////////////MODIFY
+
+//Deploy fins things
+int time_wire_hot = 10000;//////////////////////////////////////////MODIFY
 
 void setup() {
-  Serial.begin(9600);
-  initialize_SD_card();
-  File dataFile = SD.open("Testone.txt", FILE_WRITE);
-  now = millis();
-  dataFile.print("Time:");
-  dataFile.println(now);
+  Serial.begin(9600);  
   Serial.println("Setting up...");
-  dataFile.println("Setting up...");
+  initialize_SD_card();
+  dataFile = SD.open("data.txt", FILE_WRITE);//////////////////////MODIFY
+  now = millis();
+  dataFile.println("Setting up");
+  dataFile.print("Start Time : ");
+  dataFile.println(now);
+  
+  //Attatch servos;
   servo_1.attach(8);
   servo_2.attach(9);
-  now = millis();
-  dataFile.print("Time:");
-  dataFile.println(now);
-  Serial.print("Time:");
-  Serial.println(now);
+  
+  //Deploy setup
+  pinMode(deploypin,OUTPUT);
+  digitalWrite(deploypin,LOW);
+  
+  //Set up IMU
   accel.begin();
   mag.begin();
   bmp.begin();
   gyro.begin();
+  
   Serial.println("Done with Setup");
   dataFile.println("Done with Setup");
-  dataFile.close();
 }
 
 void loop() {
   beginning:
-  delay(5000);
+  Serial.println("Starting main loop now...");
+  dataFile.println("Starting main loop now...");
   
-  File dataFile = SD.open("Testone.txt", FILE_WRITE);
-  
-  Serial.println("Starting loop...");
-  dataFile.println("Starting loop...");
-  dataFile.close();
-  
-  
-  //Ask via bluetooth if ready to start
-  //Send a blip of IMU roll data via bluetooth so we know it is working
   start_again = false;
   
+  //Asks for permission to arm and sends the state of the system
+  //Look at the state and make sure that values comply with checklist
   arm_seq();
   
-  dataFile = SD.open("Testone.txt", FILE_WRITE);
-  dataFile.println("Done with arm_seq");
-  dataFile.close();
+            if (start_again == true){goto beginning;}
   
-  if (start_again == true){
-    goto beginning;
-  }
-  
-  //Check if servos are straight
+  //Sets the servos straight and asks verification
   servos_straight();
   
-  dataFile = SD.open("Testone.txt", FILE_WRITE);
-  dataFile.println("Done with servos straight");
-  dataFile.close();
+            if (start_again == true){goto beginning;}
   
-  if (start_again == true){
-    goto beginning;
+  servos_max();
+  
+            if (start_again == true){goto beginning;}
+  
+  servos_min();
+  
+            if (start_again == true){goto beginning;}
+
+  //Asks user if ready to launch. ONLY DO THIS IF ROCKET IS SETUP! 
+  final_arming();
+  
+            if (start_again == true){goto beginning;}
+  
+  //Starts detecting launch by listening to accelerometer
+  launch_detect();
+  
+            if (start_again == true){goto beginning;}
+  
+  //Delays any activity other than collecting data to prevent premature fin deployment          
+  safe_delay();
+            
+            if (start_again == true){goto beginning;}
+  
+  //Listens for pyro signal from altimeter   
+  pyro_detect();
+  
+            if (start_again == true){goto beginning;}
+            
+  //Deploys the fins by making the wire hot          
+  deploy_fins();
+  
+            if (start_again == true){goto beginning;}
+            
+   
+  
+}
+
+void deploy_fins(){
+  start = millis();
+  now = millis();
+  while (now-start < time_wire_hot){
+    if (Serial.available()) {
+        begin_again();
+        break;
+    }
+    digitalWrite(deploypin, HIGH);
+    get_state();
+    print_state();
   }
-  
-  
-  //Collect data and do servo commands
-  collect_actuate();
-  
-  dataFile = SD.open("Testone.txt", FILE_WRITE);
-  dataFile.println("Done with collect_actuate");
-  dataFile.close();
+  digitalWrite(deploypin, LOW);
+}
+
+void pyro_detect(){
+  function = "pyro_detect";
+  while (altimeter_value < pyro_on){
+    function = "pyro_detect_while_loop";
+    if (Serial.available()) {
+        begin_again();
+        break;
+    }
+    get_state();
+    print_state();
+    altimeter_value = analogRead(altimeter_check_pin);
+    Serial.print(altimeter_value);
+  }
+}
+
+void safe_delay(){
+  function = "safe_delay";
+  start = millis();
+  now = millis();
+  while (now-start < 20000){
+    function = "safe_delay_while_loop";
+    if (Serial.available()) {
+        begin_again();
+        break;
+    }
+    get_state();
+    print_state();
+  }
 }
 
 void arm_seq(){
-  File dataFile = SD.open("Testone.txt", FILE_WRITE);
   while (Serial.available() == false) {
-    now = millis();
-    dataFile.print("Time:");
-    dataFile.println(now);
-    Serial.print("Time:");
-    Serial.println(now);
-    Serial.println("Ready to be armed. Type 'a'");
-    dataFile.println("Ready to be armed. Type 'a'");
-    dataFile.close();
-    collect_data();
-    File dataFile = SD.open("Testone.txt", FILE_WRITE);
+    get_state();
+    print_state();
+    Serial.println("Ready to be armed. Type 'a' to continue");
     delay(1000);
   }
   if (Serial.available()) {
@@ -143,21 +240,29 @@ void arm_seq(){
       byte arm = Serial.read();
       now = millis();
       if (arm == 'a'){
-        dataFile.print("Time:");
-        dataFile.println(now);
-        Serial.println("ARMED");
-        dataFile.println("ARMED");
+        Serial.println("System stage 1 ARMED");
+        function = "Stage 1 armed";
       }
       else {
-        dataFile.print("Time:");
-        dataFile.println(now);
         Serial.println("Incorrect key. Press 'a' to arm. Starting over...");
-        dataFile.println("Incorrect key. Press 'a' to arm. Starting over...");
         begin_again();
       }
   }
-  dataFile.close();
   delay(1000);
+}
+
+void print_state(){
+  //Current function, roll, pitch, yaw, altitude, acceleration, Servo command, Altimeter value, Time
+  printablestring = "";
+  printablestring.concat(function);
+  dataFile.println(printablestring);
+  //az is accel
+}
+
+void get_state(){
+  //Current function, roll, pitch, yaw, altitude, acceleration, Servo command, Altimeter value, Time
+  now = millis();
+  collect_data();
 }
 
 void begin_again(){
@@ -165,121 +270,156 @@ void begin_again(){
 }
 
 void servos_straight(){
-  now = millis();
-  count = 0;
-  File dataFile = SD.open("Testone.txt", FILE_WRITE);
-  servo_1.write(90);///////////////////////////////////////////////////////////////////////////////
-  servo_2.write(105);//////////////////////////////////////////////////////////////////////////////
-    dataFile.print("Time:");
-    dataFile.println(now);
-    Serial.print("Time:");
-    Serial.println(now);
-    Serial.println("Servos being commanded to 0 degrees\n");
-  Serial.println("Check slots on rocket- Make sure fins will deploy\n");
-  dataFile.println("Servos being commanded to 0 degrees\n");
-  dataFile.println("Check slots on rocket- Make sure fins will deploy\n");
-  
-  while (Serial.available() == false) {
-    now = millis();
-    dataFile.print("Time:");
-    dataFile.println(now);
-    Serial.print("Time:");
-    Serial.println(now);
-    Serial.print("Are the fins clear of the slots? Type 'y'\n");
-    dataFile.println("Are the fins clear of the slots? Type 'y'\n");
+  while(Serial.available() == false){
+    function = "servos_straight";
+    get_state();
+    print_state();
+    servo_1.write(servo1_center);
+    servo_2.write(servo2_center);
+    Serial.println("Commanding Servos to be straight. Are they? Type 'y'"); 
     delay(1000);
   }
   if (Serial.available()) {
-      // Read command
-      byte straight = Serial.read ();
-      now = millis();
+      byte straight = Serial.read();
       if (straight == 'y'){
-        dataFile.print("Time:");
-        dataFile.println(now);
-        Serial.print("Time:");
-        Serial.println(now);
-        Serial.println("Flaps confirmed straight. Continuing...\n");
-        dataFile.println("Flaps confirmed straight. Continuing...\n");
+        function = "Flaps are straight";
+        get_state();
+        print_state();
+        Serial.println("Flaps confirmed straight. Continuing...");
       }
       else {
-        dataFile.print("Time:");
-        dataFile.println(now);
-        Serial.println("Type 'y' if they are good. Starting over...\n");
-        dataFile.println("Type 'y' if they are good. Starting over...\n");
+        Serial.println("Type 'y' if they are good. Starting over...");
         begin_again();
       }
   }
-  dataFile.close();
   delay(1000);
 }
 
-void collect_actuate(){
-  File dataFile = SD.open("Testone.txt", FILE_WRITE);
-  dataFile.println("Entered collect_actuate");
-  while (count < sizeof(actuate_vals)/sizeof(int)){
-    now = millis();
-    dataFile.print("Time:");
-    dataFile.println(now);
-    Serial.print("Time:");
-    Serial.println(now);
-    collect_delay();
-    Serial.println("count is "+String(count)+"\n");
-    dataFile.println("count is "+String(count)+"\n");
-    dataFile.close();
-    actuate();
-    File dataFile = SD.open("Testone.txt", FILE_WRITE);
-  } 
-  now = millis();
-  dataFile.println("Time: " + now);
-  Serial.println("Done with actuation sequence!\n");
-  dataFile.println("Done with actuation sequence!\n");
-  dataFile.close();
-}
-
-void collect_delay(){
-  File dataFile = SD.open("Testone.txt", FILE_WRITE);
-  start = millis();
-  now = millis();
-  dataFile.println("Entered collect_delay");
-  while (now-start < delay_vals[count]){
-    dataFile.println("In while loop of collect_delay");
-    dataFile.close();
-    collect_data();
-    now = millis();
+void servos_min(){
+  while(Serial.available() == false){
+    function = "servos_min";
+    get_state();
+    print_state();
+    servo_1.write(servo1_min);
+    servo_2.write(servo2_min);
+    Serial.println("Commanding Servos to min. Listen for weird noise. Type 'm'"); 
+    delay(1000);
   }
+  if (Serial.available()) {
+      byte straight = Serial.read();
+      if (straight == 'm'){
+        function = "Flaps are at min and are OK";
+        get_state();
+        print_state();
+        Serial.println("Servo min confirmed OK. Continuing...");
+      }
+      else {
+        Serial.println("Type 'm' if they are good. Starting over...");
+        begin_again();
+      }
+  }
+  delay(1000);
 }
 
-void actuate(){
-  
-  File dataFile = SD.open("Testone.txt", FILE_WRITE);
-  servo_1.write(actuate_vals[count]);/////////////////////////////////////////////////////////////
-  servo_2.write(actuate_vals[count]+15);/////////////////////////////////////////////////////////////
-  dataFile.print("Time: ");
-  dataFile.println(now);  
-  dataFile.print("Servos commanded to: ");
-  dataFile.println(actuate_vals[count]);
-  count += 1;
-  dataFile.close();
-  collect_data();
+void final_arming(){
+  while(Serial.available() == false){
+    function = "Final Arming";
+    get_state();
+    print_state();
+    Serial.println("Ready to do FINAL Arming. Press A to continue."); 
+    delay(1000);
+  }
+  if (Serial.available()) {
+      byte straight = Serial.read();
+      if (straight == 'A'){
+        function = "INITIATE LAUNCH SEQUENCE";
+        get_state();
+        print_state();
+        Serial.println("Launch sequence INITIATED");
+      }
+      else {
+        Serial.println("Type 'A' to initiate launch sequence. Starting over...");
+        begin_again();
+      }
+  }
+  delay(1000);
+}
+
+void servos_max(){
+  while(Serial.available() == false){
+    function = "servos_max";
+    get_state();
+    print_state();
+    servo_1.write(servo1_max);
+    servo_2.write(servo2_max);
+    Serial.println("Commanding Servos to max. Listen for weird noise. Type 'm'"); 
+    delay(1000);
+  }
+  if (Serial.available()) {
+      byte straight = Serial.read();
+      if (straight == 'm'){
+        function = "Flaps are at max and are OK";
+        get_state();
+        print_state();
+        Serial.println("Servo max confirmed OK. Continuing...");
+      }
+      else {
+        Serial.println("Type 'm' if they are good. Starting over...");
+        begin_again();
+      }
+  }
+  delay(1000);
 }
 
 void collect_data(){
-  now = millis();
-  File dataFile = SD.open("Testone.txt", FILE_WRITE);
   MadgwickAHRSupdate();
+  
   psi = atan2((2 * q1 * q2) - (2 * q0 * q3), (2 * pow(q0, 2)) + (2 * pow(q1, 2)) - 1);
   psi *= 180.0/PI;
   if (psi < 0) psi+=360;
-  now = millis();
-  dataFile.print("Time: ");
-  dataFile.print(now);
-  Serial.println(psi);
-  dataFile.print(" :PSI: ");
-  dataFile.println(psi);
-  dataFile.close();
+  
+  theta = asin((2 * q1 * q3) + (2 * q0 * q2));
+  theta *= 180.0/PI;
+  if (theta < 0) theta+=360;
+  
+  phi = atan2((2 * q2 * q3) - (2 * q0 * q1), (2 * pow(q0, 2)) + (2 * pow(q3, 2)) - 1);
+  phi *= 180.0/PI;
+  if (phi < 0) phi+=360;
+  
+  delay(5);
 }
 
-void MadgwickAHRSupdate() {
+void launch_detect(){
+  function = "launch_detect";
+  get_state();
+  print_state();
+  while (az < launch_accel){
+    function = "launch_detect_whileLoop";
+    if (Serial.available()) {
+      begin_again();
+      break;
+      }
+     get_state();
+     print_state();  
+  }
+}
+
+void initialize_SD_card() {
+   Serial.print("Initializing SD card...");
+  // On the Ethernet Shield, CS is pin 4. It's set as an output by default.
+  // Note that even if it's not used as the CS pin, the hardware SS pin
+  // (10 on most Arduino boards, 53 on the Mega) must be left as an output
+  // or the SD library functions will not work.
+  pinMode(53, OUTPUT);
+
+  if (!SD.begin(chipSelect)) {
+    Serial.println("initialization failed, pin not connected");
+    return;
+  }
+  Serial.println("SD card initialized.");
+ }
+ 
+ void MadgwickAHRSupdate() {
   /* Get a new sensor event */
   sensors_event_t eventg;
   gyro.getEvent(&eventg);
@@ -292,7 +432,7 @@ void MadgwickAHRSupdate() {
   accel.getEvent(&eventa);
   float  ax = (eventa.acceleration.x)*101;
   float  ay = eventa.acceleration.y*101;
-  float  az = eventa.acceleration.z*101;
+  az = eventa.acceleration.z*101;
   /* Get a new sensor event */
   sensors_event_t eventm;
   mag.getEvent(&eventm);
@@ -394,28 +534,6 @@ void MadgwickAHRSupdate() {
   q3 *= recipNorm;
 }
 
-void initialize_SD_card() {
-   Serial.print("Initializing SD card...");
-  // On the Ethernet Shield, CS is pin 4. It's set as an output by default.
-  // Note that even if it's not used as the CS pin, the hardware SS pin
-  // (10 on most Arduino boards, 53 on the Mega) must be left as an output
-  // or the SD library functions will not work.
-  pinMode(53, OUTPUT);
-
-  if (!SD.begin(chipSelect)) {
-    Serial.println("initialization failed, pin not connected");
-    return;
-  }
-  Serial.println("SD card initialized.");
- }
-
-
-
-
-
-//---------------------------------------------------------------------------------------------------
-// IMU algorithm update
-
 void MadgwickAHRSupdateIMU() {
   /* Get a new sensor event */
   sensors_event_t eventg;
@@ -429,7 +547,7 @@ void MadgwickAHRSupdateIMU() {
   accel.getEvent(&eventa);
   float  ax = eventa.acceleration.x;
   float  ay = eventa.acceleration.y;
-  float  az = eventa.acceleration.z;
+  az = eventa.acceleration.z;
   /* Get a new sensor event */
   sensors_event_t eventm;
   mag.getEvent(&eventm);
@@ -502,4 +620,3 @@ void MadgwickAHRSupdateIMU() {
   q2 *= recipNorm;
   q3 *= recipNorm;
 }
-

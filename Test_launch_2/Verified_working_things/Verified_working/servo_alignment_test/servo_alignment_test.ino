@@ -13,10 +13,12 @@ void setup() {
 serv_1.attach(8);
 serv_2.attach(9);
 }
-
+//Servo 2 middle is 105
+//Max is 135
+//Min is
 void loop() {
 //Label the servos
-  serv_1.write(60);
-  serv_2.write(60);
+  serv_1.write(90);
+  serv_2.write(90);
   delay(1000);
 }
