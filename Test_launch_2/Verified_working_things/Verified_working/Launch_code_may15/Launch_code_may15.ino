@@ -63,6 +63,16 @@ int servo2_center = 90;
 int servo2_max = 110;
 int servo2_min = 70;
 
+//PID things
+#include <PID_v4.h>
+double Input, Output, pid_out; 
+double Setpoint = 30;
+float P;
+float I;
+float D;
+PID myPID(&Input, &Output, &Setpoint, 1, 0, 0,DIRECT);//pid///////////////
+int pid_time = 60000;
+double servo1Output, servo2Output;
 
 //Timing related things
 unsigned long now;
@@ -124,6 +134,10 @@ void setup() {
   bmp.begin();
   gyro.begin();
   
+  //PID setup
+  myPID.SetMode(AUTOMATIC); //turn PID on
+  myPID.SetOutputLimits(-400,400);
+  
   Serial.println("Done with Setup");
   dataFile.println("Done with Setup");
 }
@@ -179,14 +193,99 @@ void loop() {
   
             if (start_again == true){goto beginning;}
             
-   
+  actuate_preset();
+  
+  actuate_control();
+  end_task();
+  //dataFile.close();
   
 }
 
-void deploy_fins(){
+void end_task(){
+  function = "end_task";
+  get_state();
+  print_state();
+  while (1){delay(1000);}
+}
+
+void actuate_PID(){
+  servo1Output = map(Output, -400, 400, servo1_min, servo1_max);////////////////////Set servo constraint here
+  servo2Output = map(Output, -400, 400, servo2_min, servo2_max);
+  
+  if (servo1Output > servo1_max){
+    servo1Output = servo1_max;
+  }
+  if (servo1Output < servo1_min){
+    servo1Output = servo1_min;
+  }
+  
+  if (servo2Output > servo2_max){
+    servo2Output = servo2_max;
+  }
+  if (servo2Output < servo2_min){
+    servo2Output = servo2_min;
+  }
+}
+
+
+void actuate_control(){
+  function = "actuate_control";
+  get_state();
+  print_state();
   start = millis();
   now = millis();
-  while (now-start < time_wire_hot){
+  while (now-start < pid_time){
+    function = "actuate_control_whileLoop";
+    get_state();
+    print_state();
+    pid();
+    actuate_PID;
+  }
+}
+
+void pid(){
+  Input = psi;
+  myPID.Compute();
+  pid_out = Output;
+}
+
+void actuate_preset(){
+  function = "actuate_preset";
+  get_state();
+  print_state();
+  while (count < sizeof(actuate_vals)/sizeof(int)){ 
+    actuate_preset_vals();
+    actuate_delay();
+  }
+}
+
+void actuate_delay(){
+  function = "actuate_delay";
+  start = millis();
+  now = millis();
+  while (now-start < delay_vals[count]){
+    get_state();
+    print_state();
+    function = "actuate_delay_whileLoop";
+  }
+}
+
+void actuate_preset_vals(){
+    function = "actuate_preset";
+    servo_1.write(actuate_vals[count]);///////////////////////////////MODIFY
+    servo_2.write(actuate_vals[count]);
+    servo1Output = actuate_vals[count];
+    servo2Output = actuate_vals[count];
+    get_state();
+    print_state();
+    count += 1;
+}
+
+void deploy_fins(){
+  function = "deploy_fins";
+  start = millis();
+  now = millis();
+  while (now-start < time_wire_hot){   
     if (Serial.available()) {
         begin_again();
         break;
@@ -194,6 +293,7 @@ void deploy_fins(){
     digitalWrite(deploypin, HIGH);
     get_state();
     print_state();
+    function = "deploy_fins_whileLoop";
   }
   digitalWrite(deploypin, LOW);
 }
@@ -201,13 +301,13 @@ void deploy_fins(){
 void pyro_detect(){
   function = "pyro_detect";
   while (altimeter_value < pyro_on){
-    function = "pyro_detect_while_loop";
     if (Serial.available()) {
         begin_again();
         break;
     }
     get_state();
     print_state();
+    function = "pyro_detect_whileLoop";
     altimeter_value = analogRead(altimeter_check_pin);
     Serial.print(altimeter_value);
   }
@@ -252,15 +352,43 @@ void arm_seq(){
 }
 
 void print_state(){
-  //Current function, roll, pitch, yaw, altitude, acceleration, Servo command, Altimeter value, Time
+  //Current function, roll, pitch, yaw, altitude, acceleration, Servo command, Time
   printablestring = "";
+  printablestring.concat("Function,");
+  printablestring.concat("Psi, ");
+  printablestring.concat("Theta, ");
+  printablestring.concat("Phi, ");
+  printablestring.concat("Servo 1 Command, ");
+  printablestring.concat("Servo 2 Command, ");
+  printablestring.concat("PID Output, ");
+  printablestring.concat("Acceleration_z, ");
+  printablestring.concat("Count, ");
+  printablestring.concat("Time, ");
   printablestring.concat(function);
+  printablestring.concat(", ");
+  printablestring.concat(psi);
+  printablestring.concat(", ");
+  printablestring.concat(theta);
+  printablestring.concat(", ");
+  printablestring.concat(phi);
+  printablestring.concat(", ");
+  printablestring.concat(servo1Output);
+  printablestring.concat(", ");
+  printablestring.concat(servo2Output);
+  printablestring.concat(", ");
+  printablestring.concat(Output);
+  printablestring.concat(", ");
+  printablestring.concat(az);
+  printablestring.concat(", ");
+  printablestring.concat(count);
+  printablestring.concat(", ");
+  printablestring.concat(now);
+ 
   dataFile.println(printablestring);
-  //az is accel
 }
 
 void get_state(){
-  //Current function, roll, pitch, yaw, altitude, acceleration, Servo command, Altimeter value, Time
+  //other states recorded in other functions
   now = millis();
   collect_data();
 }
@@ -276,6 +404,8 @@ void servos_straight(){
     print_state();
     servo_1.write(servo1_center);
     servo_2.write(servo2_center);
+    servo1Output = servo1_center;
+    servo2Output = servo2_center;
     Serial.println("Commanding Servos to be straight. Are they? Type 'y'"); 
     delay(1000);
   }
@@ -302,6 +432,8 @@ void servos_min(){
     print_state();
     servo_1.write(servo1_min);
     servo_2.write(servo2_min);
+    servo1Output = servo1_min;
+    servo2Output = servo2_min;
     Serial.println("Commanding Servos to min. Listen for weird noise. Type 'm'"); 
     delay(1000);
   }
@@ -352,6 +484,8 @@ void servos_max(){
     print_state();
     servo_1.write(servo1_max);
     servo_2.write(servo2_max);
+    servo1Output = servo1_max;
+    servo2Output = servo2_max;
     Serial.println("Commanding Servos to max. Listen for weird noise. Type 'm'"); 
     delay(1000);
   }
